@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "discord-scores": "^1.0.1",
+    "discord-scores": "^1.0.6",
     "discord.js": "^11.5.1",
     "pg": "^7.17.0"
   }
