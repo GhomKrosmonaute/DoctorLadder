@@ -1,0 +1,16 @@
+{
+  "name": "doctorladder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord-scores": "^1.0.1",
+    "discord.js": "^11.5.1",
+    "pg": "^7.17.0"
+  }
+}
