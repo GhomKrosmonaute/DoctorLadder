@@ -30,7 +30,7 @@ client.on( 'message', message => {
 
     const { labs } = client
 
-    if(/^(?:top|ladder|classement|helping|scores?|points?)$/i.test(message.content)){
+    if(/^m?(top|ladder)$/i.test(message.content)){
         db.query(`
             SELECT u.id, SUM(hp.value) AS "points"
             FROM "user" u
@@ -46,16 +46,28 @@ client.on( 'message', message => {
 
                 if(res.rows.length > 0){
 
-                    const names = res.rows.map(row => labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id)
-                    const points = res.rows.map(row => row.points)
                     const ranks = ['🥇','🥈','🥉',4,5,6,7,8,9,10].slice(0,res.rows.length)
 
-                    const rdm = Math.floor(Math.random(Math.min(res.rows.length,3)))
-                    client.user.setActivity(`le top 3 |\n${ranks[rdm]} ${points[rdm]}pts ${names[rdm]}`, {type:"WATCHING"})
+                    if(/^m/i.test(message.content)){
 
-                    embed.addField('#', ranks.join('\n'), true)
-                    embed.addField('Pts.', points.join('\n'), true)
-                    embed.addField('Names', names.join('\n'), true)
+                        const names = res.rows.map(row => labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id)
+                        const points = res.rows.map(row => row.points)
+
+                        const rdm = Math.floor(Math.random(Math.min(res.rows.length,3)))
+                        client.user.setActivity(`le top 3 |\n${ranks[rdm]} ${points[rdm]}pts ${names[rdm]}`, {type:"WATCHING"})
+
+                        embed.addField('#', ranks.join('\n'), true)
+                        embed.addField('Pts.', points.join('\n'), true)
+                        embed.addField('Names', names.join('\n'), true)
+
+                    }else{
+
+                        embed.setDescription(res.rows.map(( row, i )=> {
+                            const name = labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id
+                            return `${ranks[i]} : ${row.points} pts : ${name}`
+                        }).join('\n'))
+
+                    }
 
                 }else{
                     embed.setDescription('❌ Aucun résultat...')
