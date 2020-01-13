@@ -48,7 +48,7 @@ client.on( 'message', message => {
 
                     const ranks = ['🥇','🥈','🥉',4,5,6,7,8,9,10].slice(0,res.rows.length)
 
-                    if(/^m/i.test(message.content)){
+                    if(!/^m/i.test(message.content)){
 
                         const names = res.rows.map(row => labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id)
                         const points = res.rows.map(row => row.points)
