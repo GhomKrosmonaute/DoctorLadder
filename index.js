@@ -5,7 +5,7 @@ const pg = require('pg')
 const Score = require('discord-scores')
 const { Client, RichEmbed } = require('discord.js')
 
-pg.defaults.parseInt8
+pg.defaults.parseInt8 = false
 
 const db = new pg.Pool(config.database)
 const client = new Client()
@@ -28,10 +28,16 @@ client.on( 'message', message => {
 
     if(message.system || message.author.bot) return
 
-    const { labs } = client
-
     if(/^m?(top|ladder)$/i.test(message.content)){
-        db.query(`
+        showLadder(message, 'Top 10 Donators', `
+            SELECT u.id, SUM(hp.value) AS "points"
+            FROM "user" u
+            LEFT JOIN "helping_points" hp
+            ON hp.author_id = u.id
+            GROUP BY u.id
+            ORDER BY "points" DESC LIMIT 10
+        `)
+        showLadder(message, 'Top 10 Helpers', `
             SELECT u.id, SUM(hp.value) AS "points"
             FROM "user" u
             LEFT JOIN "helping_points" hp
@@ -39,50 +45,55 @@ client.on( 'message', message => {
             GROUP BY u.id
             ORDER BY "points" DESC LIMIT 10
         `)
-            .then(res => {
-
-                let embed = new RichEmbed()
-                    .setAuthor('Top 10 Helpers', labs.gif)
-
-                if(res.rows.length > 0){
-
-                    const ranks = ['🥇','🥈','🥉',4,5,6,7,8,9,10].slice(0,res.rows.length)
-
-                    if(!/^m/i.test(message.content)){
-
-                        const names = res.rows.map(row => labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id)
-                        const points = res.rows.map(row => row.points)
-
-                        const rdm = Math.floor(Math.random(Math.min(res.rows.length,3)))
-                        client.user.setActivity(`le top 3 |\n${ranks[rdm]} ${points[rdm]}pts ${names[rdm]}`, {type:"WATCHING"})
-
-                        embed.addField('#', ranks.join('\n'), true)
-                        embed.addField('Pts.', points.join('\n'), true)
-                        embed.addField('Names', names.join('\n'), true)
-
-                    }else{
-
-                        embed.setDescription(res.rows.map(( row, i )=> {
-                            const name = labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id
-                            return `${ranks[i]} : ${row.points} pts : ${name}`
-                        }).join('\n'))
-
-                    }
-
-                }else{
-                    embed.setDescription('❌ Aucun résultat...')
-                }
-                message.channel.send(embed)
-            })
-            .catch(err => {
-                message.channel.send(err.message)
-            })
     }
 
 })
 
 scores.on('add', event => updateScore(event, event.value))
 scores.on('remove', event => updateScore(event, event.value * -1))
+
+function showLadder(message, title, query){
+    const { labs } = client
+    db.query(query)
+        .then(res => {
+
+            let embed = new RichEmbed()
+                .setAuthor(title, labs.gif)
+
+            if(res.rows.length > 0){
+
+                const ranks = ['🥇','🥈','🥉',4,5,6,7,8,9,10].slice(0,res.rows.length)
+
+                if(!/^m/i.test(message.content)){
+
+                    const names = res.rows.map(row => labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id)
+                    const points = res.rows.map(row => row.points)
+
+                    const rdm = Math.floor(Math.random(Math.min(res.rows.length,3)))
+                    client.user.setActivity(`le top 3 |\n${ranks[rdm]} ${points[rdm]}pts ${names[rdm]}`, {type:"WATCHING"})
+
+                    embed.addField('#', ranks.join('\n'), true)
+                    embed.addField('Pts.', points.join('\n'), true)
+                    embed.addField('Names', names.join('\n'), true)
+
+                }else{
+
+                    embed.setDescription(res.rows.map(( row, i )=> {
+                        const name = labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id
+                        return `${ranks[i]} : ${row.points} pts : ${name}`
+                    }).join('\n'))
+
+                }
+
+            }else{
+                embed.setDescription('❌ Aucun résultat...')
+            }
+            message.channel.send(embed)
+        })
+        .catch(err => {
+            message.channel.send(err.message)
+        })
+}
 
 function updateScore(event, value){
     db.query(`
@@ -91,7 +102,7 @@ function updateScore(event, value){
         ON CONFLICT DO NOTHING
     `)
         .then(done => {
-            db.query({
+            return db.query({
                 text: `
                     INSERT INTO "helping_points" 
                     ( user_id, author_id, value )
@@ -103,14 +114,15 @@ function updateScore(event, value){
                 `,
                 values: [ value ]
             })
-                .then(res => {
-                    event.message.react('👀')
-                        .then(reac => {
-                            setTimeout(()=>{
-                                reac.remove().catch(err=>{})
-                            }, 2000)
-                        }).catch(err=>{})
-                }).catch(console.error)
-        }).catch(console.error)
+        })
+        .then(done => {
+            return event.message.react('👀')
+        })
+        .then(reac => {
+            setTimeout(()=>{
+                reac.remove().catch(err=>{})
+            }, 2000)
+        })
+        .catch(console.error)
         
 }
