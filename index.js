@@ -4,7 +4,9 @@ const config = require('./config.json')
 const pg = require('pg')
 const Score = require('discord-scores')
 const { Client, RichEmbed } = require('discord.js')
+const moment = require('moment')
 
+moment.locale('fr-FR')
 pg.defaults.parseInt8 = false
 
 const db = new pg.Pool(config.database)
@@ -28,23 +30,23 @@ client.on( 'message', message => {
 
     if(message.system || message.author.bot) return
 
-    if(/^m?(top|ladder)$/i.test(message.content)){
+    if(/^(?:l!)?m?\s?(?:top|ladder)$/i.test(message.content)){
         showLadder(message, 'Top 10 Donators', `
-            SELECT u.id, SUM(hp.value) AS "points"
-            FROM "user" u
-            LEFT JOIN "helping_points" hp
-            ON hp.author_id = u.id
-            GROUP BY u.id
+            SELECT author_id AS "id", SUM("value") AS "points"
+            FROM "helping_points"
+            GROUP BY "id"
             ORDER BY "points" DESC LIMIT 10
         `)
         showLadder(message, 'Top 10 Helpers', `
-            SELECT u.id, SUM(hp.value) AS "points"
-            FROM "user" u
-            LEFT JOIN "helping_points" hp
-            ON hp.user_id = u.id
-            GROUP BY u.id
+            SELECT user_id AS "id", SUM("value") AS "points"
+            FROM "helping_points"
+            GROUP BY "id"
             ORDER BY "points" DESC LIMIT 10
         `)
+    }
+
+    if(/^l!logs?$/i.test(message.content)){
+        showLogs(message)
     }
 
 })
@@ -52,13 +54,48 @@ client.on( 'message', message => {
 scores.on('add', event => updateScore(event, event.value))
 scores.on('remove', event => updateScore(event, event.value * -1))
 
-function showLadder(message, title, query){
-    const { labs } = client
-    db.query(query)
-        .then(res => {
+async function showLogs(message){
+    db.query(`
+        SELECT * FROM "helping_points"
+        ORDER BY "created_at" DESC LIMIT 20
+    `)
+        .then( async res => {
+            
+            const embed = new RichEmbed()
+                .setAuthor('20 Derniers Logs', client.labs.gif)
 
-            let embed = new RichEmbed()
-                .setAuthor(title, labs.gif)
+            const logs = []
+            
+            for( row of res.rows){
+                
+                const author = client.users.get(row.author_id) || await client.fetchUser(row.author_id)
+                const target = client.users.get(row.user_id) || await client.fetchUser(row.user_id)
+
+                if(!author || !target) continue
+
+                let action = 'donne'
+                if(row.value < 0){
+                    action = 'retire'
+                    row.value *= -1
+                }
+
+                logs.push(`${moment(row.created_at).fromNow()}, **${author.username}** ${action} \`${row.value}\` à **${target.username}**`)
+
+            }
+
+            embed.setDescription(logs.join('\n'))
+
+            message.channel.send(embed)
+
+        })
+}
+
+function showLadder(message, title, query){
+    db.query(query)
+        .then(async res => {
+
+            const embed = new RichEmbed()
+                .setAuthor(title, client.labs.gif)
 
             if(res.rows.length > 0){
 
@@ -66,7 +103,8 @@ function showLadder(message, title, query){
 
                 if(!/^m/i.test(message.content)){
 
-                    const names = res.rows.map(row => labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id)
+                    const users = await Promise.all(res.rows.map(row => client.users.has(row.id) ? client.users.get(row.id) : client.fetchUser(row.id)))
+                    const names = users.map(user => user.username.slice(0,15))
                     const points = res.rows.map(row => row.points)
 
                     const rdm = Math.floor(Math.random(Math.min(res.rows.length,3)))
@@ -79,7 +117,7 @@ function showLadder(message, title, query){
                 }else{
 
                     embed.setDescription(res.rows.map(( row, i )=> {
-                        const name = labs.members.has(row.id) ? labs.members.get(row.id).displayName.slice(0,15) : row.id
+                        const name = client.labs.members.has(row.id) ? client.labs.members.get(row.id).displayName.slice(0,15) : row.id
                         return `${ranks[i]} : ${row.points} pts : ${name}`
                     }).join('\n'))
 
